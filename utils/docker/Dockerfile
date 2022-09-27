@@ -91,13 +91,12 @@ RUN pip install imutils
 RUN apt-get -y install libgtk2.0-dev
 
 # Create working directory
-RUN mkdir -p /usr/src/app
-WORKDIR /usr/src/app
+RUN mkdir -p /usr/src/yolov5
+WORKDIR /usr/src/yolov5
 
 # Copy contents
-COPY . /usr/src/app
-RUN git clone https://github.com/ultralytics/yolov5 /usr/src/yolov5
 COPY . /usr/src/yolov5
+RUN git clone https://github.com/ultralytics/yolov5 /usr/src/yolov5
 
 # Set environment variables
 ENV OMP_NUM_THREADS=8
