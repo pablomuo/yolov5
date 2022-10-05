@@ -2,13 +2,18 @@ from scipy import signal
 import matplotlib.pyplot as plot 
 import numpy as np 
   
-px, py = np.linspace(0, 1, 10), []
-print(px)
-print(py)
+print("hola")
 
-# plot.plot(t, signal.square(2 * np.pi * 5 * t)) 
-  
-# plot.xlabel("Time(Seconds)", fontname="Brush Script MT", fontsize=18) 
-# plot.ylabel("Amplitude", fontname="Brush Script MT", fontsize=18) 
-  
-# plot.show()
+for i in range(12):
+    print("netras")
+    n = i
+    for i in range(7):
+        l = n 
+        print(l)
+        if l == 1:
+            break
+        else:
+            print("seguimos")
+            pass
+
+print("fuera bucle")

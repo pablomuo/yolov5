@@ -96,7 +96,7 @@ WORKDIR /usr/src/yolov5
 
 # Copy contents
 COPY . /usr/src/yolov5
-RUN git clone https://github.com/pablomuo/yolov5 /usr/src/yolov5/project
+RUN git clone https://github.com/pablomuo/yolov5 /usr/src/yolov5
 
 # Set environment variables
 ENV OMP_NUM_THREADS=8
