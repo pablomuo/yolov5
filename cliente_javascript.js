@@ -1,7 +1,7 @@
 const WebSocket = require('ws');
 
 
-const socket = new WebSocket('ws://10.236.52.237:8000');
+const socket = new WebSocket('ws://10.236.30.29:8000');
 
 
 // Abre la conexión

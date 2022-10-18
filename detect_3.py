@@ -125,13 +125,13 @@ async def run(
     #send the stream to the client
     gst_str_rtp = " appsrc ! videoconvert ! videoscale ! video/x-raw,format=I420,width=1280,height=720,framerate=20/1 !  videoconvert !\
          x264enc tune=zerolatency bitrate=3000 speed-preset=superfast ! rtph264pay ! \
-         udpsink host=10.236.52.237 port=8554"
+         udpsink host=10.236.49.24 port=8554"
          #192.168.8.32
     fourcc = cv2.VideoWriter_fourcc(*'H264')
     out_send = cv2.VideoWriter(gst_str_rtp, fourcc, 20, (1280, 720), True)  #out_send = cv2.VideoWriter(gst_str_rtp, fourcc, fps, (frame_width, frame_height), True) 
 
     #send infor (text) to the terminal 
-    HOST_PORT = "ws://10.236.52.237:8000"
+    HOST_PORT = "ws://10.236.49.24:8000"
     #HOST_PORT = "ws://192.168.1.136:8000" #mi idea es un terminal para enviar la infor por frame y otro para la impresion cada 10, no se si vale la pena o se puede recibir desde 1 terminal
     #------------------------------------------------------------------------------------------------------------------------------------------------   
     final_class = [0]*26
@@ -140,6 +140,7 @@ async def run(
     v_uni = [0]*26
 
     all_ima = [0]*26
+    msg_para_enviar = f'99'
     #------------------------------------------------------------------------------------------------------------------------------------------------   
         
     # Run inference
@@ -195,20 +196,23 @@ async def run(
             if len(det):
                 # Rescale boxes from img_size to im0 size
                 det[:, :4] = scale_coords(im.shape[2:], det[:, :4], im0.shape).round()
-
+                print(det[:, 4])
                 #-------------------------------------------------------------------------------------------------------------------------------------------
                 lista = []
                 lista_num = []
                 all_data = []
                 #-------------------------------------------------------------------------------------------------------------------------------------------
-                
+                #print(det)
                 # Print results
                 for c in det[:, -1].unique():
                     n = (det[:, -1] == c).sum()  # detections per class
-                    #s += f"{int(n):02d} "  # add to string
-                ##------------------------------------------------------------------------------------------------------------------------------------------- 
-                    lista.append(int(c))
-                    lista_num.append(int(n))
+                    for q in range(len(det)):
+                        if det[q, 5] == c and det[q, 4] < 0.8:
+                            n = n-1
+                    
+                    if n != 0:
+                        lista.append(int(c))
+                        lista_num.append(int(n))
                 ##-------------------------------------------------------------------------------------------------------------------------------------------  create the value to calculate the area of the bounding box    
                 
                 area1 = []
@@ -250,24 +254,27 @@ async def run(
                         
                         
                         if (c != 0):
-                            annotator.box_label(xyxy, label, color=colors(c, True))  
-                            print(f'{n:02d} {names[int(c)]} {det[d, 4]:.4f} {area1[d]}')
-                            #msg_para_enviar = f'{n:02d} {c:02d} {det[d, 4]:.4f} {area1[d]}'
-                            msg_para_enviar = f'{c:02d} {det[d, 4]:.4f} {area1[d]}'
-                            all_data.append(msg_para_enviar)
-                            #print(all_data)
+                            if (det[d, 4] >= 0.8):
+                                annotator.box_label(xyxy, label, color=colors(c, True))  
+                                print(f'{n:02d} {names[int(c)]} {det[d, 4]:.4f} {area1[d]}')
+                                #msg_para_enviar = f'{n:02d} {c:02d} {det[d, 4]:.4f} {area1[d]}'
+                                msg_para_enviar = f'{c:02d} {det[d, 4]:.4f} {area1[d]}'
+                                all_data.append(msg_para_enviar)
+                                #print(all_data)
+                            else:
+                                pass
                                    
                         else: 
                         #   if (area1[d] > 106800):
+                            if (det[d, 4] >= 0.8):
                                 annotator.box_label(xyxy, label, color=colors(c, True))  
                                 print(f'{n:02d} {names[int(c)]} {det[d, 4]:.4f} {area1[d]}')
                                 #msg_para_enviar = f'{n:02d} {c:02d} {det[d, 4]:.4f} {area1[d]}'
                                 msg_para_enviar = f'{c:02d} {det[d, 4]:.4f} {area1[d]}'
                                 all_data.append(msg_para_enviar)  
                                 #print(all_data)
-                            
-                            #else:
-                                #pass
+                            else:
+                                pass
 
                                                                     
                         d = d+1
@@ -334,8 +341,8 @@ async def run(
                         final_class[i3] = 0
                         eliminate[i3] = 0
                 
-                print("")
-                msg_para_enviar = f''
+                print()
+                msg_para_enviar = f'99'
                 await enviar(msg_para_enviar, HOST_PORT)
                 # async with websockets.connect(HOST_PORT) as websocket:
                 #         msg_para_enviar = f''

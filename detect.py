@@ -1,8 +1,6 @@
 #enviamos el stream con Gstreamer y enviamos los datos con WEBSOCKETS
-
-
-#envia todos los frames con su informacion y cada 5 seguidos de una clase saliendo envía el de control
-
+#enviamos la información de la clase cuando está 5 frames seguidos saliendo, más la información de control
+#intentamos que salgo los boxes siempre y cuando en el frame anterior se ha detectado la clase, sino no, Para evitar que parpadee
 
 # YOLOv5 🚀 by Ultralytics, GPL-3.0 license
 """
@@ -44,6 +42,7 @@ from imutils.video import VideoStream
 import cv2
 import asyncio
 import websockets
+import configparser
 #------------------------------------------------------------------------------------------------------------------------------------------------
 
 FILE = Path(__file__).resolve()
@@ -117,24 +116,40 @@ async def run(
         bs = 1  # batch_size
     vid_path, vid_writer = [None] * bs, [None] * bs
 
+    #-------------------------------------------------#To send stream and websocket to the client ---------------------------------------------------
+    #----------------------------------------------------------
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+    IP_TX = config['DEFAULT']['IP_TX']
+    PORT_TX = config['DEFAULT']['PORT_TX']
+    PORT_SB = config['DEFAULT']['PORT_SB']
+    CONF_MIN = float(config['DEFAULT']['CONF_MIN'])
+    AREA_MIN = float(config['DEFAULT']['AREA_MIN'])
+    #----------------------------------------------------------
 
-    #------------------------------------------------------------------------------------------------------------------------------------------------    #lo que se debe cambiar
-    #send the stream to the client
-    gst_str_rtp = " appsrc ! videoconvert ! videoscale ! video/x-raw,format=I420,width=1280,height=720,framerate=20/1 !  videoconvert !\
-         x264enc tune=zerolatency bitrate=3000 speed-preset=superfast ! rtph264pay ! \
-         udpsink host=10.236.42.82 port=8554"
-         #192.168.8.32
+
+    #send the stream to the client         #192.168.8.32
+    gst_str_rtp =(f'gst-launch-1.0 -v  appsrc ! videoconvert ! videoscale ! video/x-raw,format=I420,width=1280,height=720,framerate=20/1 !  videoconvert !\
+         x264enc tune=zerolatency bitrate=3000 speed-preset=superfast ! rtph264pay !\
+         udpsink host= {IP_TX} port= {PORT_TX}')
+
+    # gst_str_rtp = " appsrc ! videoconvert ! videoscale ! video/x-raw,format=I420,width=1280,height=720,framerate=20/1 !  videoconvert !\
+    #      x264enc tune=zerolatency bitrate=3000 speed-preset=superfast ! rtph264pay ! \
+    #      udpsink host=10.236.25.41 port=8554"
+
     fourcc = cv2.VideoWriter_fourcc(*'H264')
     out_send = cv2.VideoWriter(gst_str_rtp, fourcc, 20, (1280, 720), True)  #out_send = cv2.VideoWriter(gst_str_rtp, fourcc, fps, (frame_width, frame_height), True) 
 
     #send infor (text) to the terminal 
-    HOST_PORT = "ws://192.168.100.74:8000"
-    #HOST_PORT = "ws://192.168.1.136:8000" #mi idea es un terminal para enviar la infor por frame y otro para la impresion cada 10, no se si vale la pena o se puede recibir desde 1 terminal
-    #------------------------------------------------------------------------------------------------------------------------------------------------   
-    final_class = [0]*26
-    eliminate = [0]*26
-    final_num = [0]*26
-    v_uni = [0]*26
+    # HOST_PORT = "ws://10.236.25.41:8000"
+    HOST_PORT = (f'ws://{IP_TX}:{PORT_SB}')
+
+    #------------------------------------------------------------------------------------------------------------------------------------------------    #creamos vectores para almacenar la informacion
+    final_class = [0]*26    #se usa para llevar una cuenta de cuantos frames seguidos lleva viendo cada clase 
+    eliminate = [0]*26      #se utiliza saber cuando  poner a 0 el final_class por no aparecer en varios frames seguidos
+    final_num = [0]*26      #se usa para almacenar el numero de objetos que ve de cada una de las clases, 
+    v_uni = [0]*26          #vector de 1 y 0s que se usa para multiplicar con el final_num para ver cuando sacar o no infor (si está)
+    all_ima = [0]*26        #se usa para llevar una cuenta de cuantos frames seguidos lleva viendo cada clase para ver si sacamos o no la img. 
     #------------------------------------------------------------------------------------------------------------------------------------------------   
         
     # Run inference
@@ -180,40 +195,42 @@ async def run(
             imc = im0.copy() if save_crop else im0  # for save_crop
             annotator = Annotator(im0, line_width=line_thickness, example=str(names))
 
-            s += f""
-            for c in range(26):
-                n = (det[:, -1] == c).sum()  # detections per class
-                s += f"{int(n):02d} "  # add to string
-            
-            #print(s)
-
             if len(det):
                 # Rescale boxes from img_size to im0 size
                 det[:, :4] = scale_coords(im.shape[2:], det[:, :4], im0.shape).round()
+                print(det[:, 4])
+                #------------------------------------------------------------------------------------------------------------------------------------------- creacion de listas que almacenan la infor de: 
+                lista = []          #almacena las clases
+                lista_num = []      #almacena los numeros de objetos que ve de las clases
+                all_data = []       #almacena el msg que queremos enviar al final (clase, peso, area...)
+                area1 = []
+                #-------------------------------------------------------------------------------------------------------------------------------------------
+                for d in range(len(det)):              #area de cada una de las detecciones (oredenadas de mayor confianza a menos)
+                    v = (det[d, 2] - det[d, 0]) * (det[d, 3] - det[d, 1])
+                    area1.append(v)
 
-                #-------------------------------------------------------------------------------------------------------------------------------------------
-                lista = []
-                lista_num = []
-                #-------------------------------------------------------------------------------------------------------------------------------------------
-                
                 # Print results
                 for c in det[:, -1].unique():
                     n = (det[:, -1] == c).sum()  # detections per class
-                    #s += f"{int(n):02d} "  # add to string
+                    for d in range(len(det)):
+                        #if det[d, 5] == c and (det[d, 4] < CONF_MIN or area1[d] < AREA_MIN):      #si se tiene en cuenta una confianza mínima y un área mínima
+                        if det[d, 5] == c and det[d, 4] < CONF_MIN:                         #si se tiene en cuenta solo una confianza mínima 
+                            n = n-1
+                    
+                    if n != 0:                                  ##-------------------------------------------------------------------------------------- toman valor las listas creadas anteriormente 
+                        lista.append(int(c))
+                        lista_num.append(int(n))
+                ##------------------------------------------------------------------------------------------------------------------------------------------- analiza las clases que detectan en cada frame y suma 1 si se sale la clase en el frame
+                for i1 in range(len(lista)):
+                    numero = lista[i1] 
+                    final_class[numero] += 1
+                    final_num[numero] = lista_num[i1]
+                    all_ima[numero] += 1
                 ##------------------------------------------------------------------------------------------------------------------------------------------- 
-                    lista.append(int(c))
-                    lista_num.append(int(n))
-                ##-------------------------------------------------------------------------------------------------------------------------------------------  create the value to calculate the area of the bounding box    
-                
-                area1 = []
-                for d in range(len(det)):  
-                    v = (det[d, 2] - det[d, 0]) * (det[d, 3] - det[d, 1])
-                    area1.append(v)
-                ##------------------------------------------------------------------------------------------------------------------------------------------- 
-                
+
                 # Write results
-                d = 0
-                for *xyxy, conf, cls in reversed(det):
+                d = len(det)-1            
+                for *xyxy, conf, cls in reversed(det):        #este for va desde los valores con menos confianza hasta los que más tiene (lo inverso que det, que su primer valor es la detección con más confianza)
                     if save_txt:  # Write to file
                         xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
                         line = (cls, *xywh, conf) if save_conf else (cls, *xywh)  # label format
@@ -223,87 +240,79 @@ async def run(
                     if save_img or save_crop or view_img:  # Add bbox to image
                         c = int(cls)  # integer class
                         label = None if hide_labels else (names[c] if hide_conf else f'{names[c]} {conf:.2f}')
-                        ##------------------------------------------------------------------------------------------------------------------------------------------- #para calcular el numero de objetos por cada una de las clases
-                        n = (det[:, -1] == c).sum()  # detections per class  
-                        ##------------------------------------------------------------------------------------------------------------------------------------------- 
-                        #print(f'{int(n)} {names[int(c)]} {det[d, 4]:.4f} {area1[d]}')
-                        ##------------------------------------------------------------------------------------------------------------------------------------------- #print the corresponding infor according to the class and area
-                        if (c != 0):
-                            annotator.box_label(xyxy, label, color=colors(c, True))  
-                            print(f'{n:02d} {names[int(c)]} {det[d, 4]:.4f} {area1[d]}')
-                            #msg_para_enviar = f'{n:02d} {c:02d} {det[d, 4]:.4f} {area1[d]}'
-                            msg_para_enviar = f'{c:02d} {det[d, 4]:.4f} {area1[d]}'
-                                   
-                        else: 
-                        #     if (area1[d] > 106800):
+                        #n = (det[:, -1] == c).sum()  # detections per class  (para calcular el numero de objetos por cada una de las clases)
+                        ##------------------------------------------------------------------------------------------------------------------------------------------- #print the corresponding infor and bounding box according to the class and area
+                        if all_ima[c] >= 2:
+                            #if (det[d, 4] >= CONF_MIN) and (area1[d] >= AREA_MIN):                      #si se tiene en cuenta una confianza mínima y un área mínima
+                            if (det[d, 4] >= CONF_MIN):
                                 annotator.box_label(xyxy, label, color=colors(c, True))  
-                                print(f'{n:02d} {names[int(c)]} {det[d, 4]:.4f} {area1[d]}')
-                                #msg_para_enviar = f'{n:02d} {c:02d} {det[d, 4]:.4f} {area1[d]}'
-                                msg_para_enviar = f'{c:02d} {det[d, 4]:.4f} {area1[d]}'                                
-                                                                    
-                        d = d+1
-                        await enviar(msg_para_enviar, HOST_PORT)
+                                ms = f'{c:02d} {det[d, 4]:.4f} {det[d, 0]} {det[d, 1]} {det[d, 2]} {det[d, 3]} '   #estio sera lo que se imprima en el txt, de cada observacion
+                                print(ms)
+                                msg_para_enviar = f'{c:02d} {det[d, 4]:.4f} {area1[d]}'     #msg_para_enviar = f'{n:02d} {c:02d} {det[d, 4]:.4f} {area1[d]}'
+                                all_data.append(msg_para_enviar)
+                        d = d-1                                #se resta porque va desde el final de det hasta el principio (porque va desde los valores con menos confianza a los que más, justo lo contrario que det, que su primer valor es la detección con más confianza)
                         ##-------------------------------------------------------------------------------------------------------------------------------------------
                     if save_crop:
                         save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg', BGR=True)
 
-            ##-------------------------------------------------------------------------------------------------------------------------------------------
-                for i1 in range(len(lista)):
-                    numero = lista[i1]
-                    final_class[numero] = final_class[numero] + 1
-                    final_num[numero] = lista_num[i1]
-
+            ##------------------------------------------------------------------------------------------------------------------------------------------- 
+            #este "for" ve si está la clase:
+                #si no: le da valor a eliminarte y si este llega a ser igual a dos, inicializa las listas
+                #si si, si final_class llega a ser multiplo de 5, se saca por pantalla, significa que lleva 5 frames seguidos saliendo esa clase
+                #i3 selecciona el msg que corresponde a la clase del for i2
+                #i4 se encarga de poner v_unit a 1 cuando se cumpla la condicion de >= 5, que permitira a b tomar valor y enviar el mensaje de control (msg_total)
                 for i2 in range(len(final_class)):
                     if i2 in lista:
                         pass
                     else:
                         eliminate[i2] = eliminate[i2] +1
+
                     if eliminate[i2] == 2:
                         final_class[i2] = 0
-                        eliminate[i2] = 0 
+                        eliminate[i2] = 0
+                        all_ima[i2] = 0 
                     
                     if final_class[i2] == 0:
                         pass
-                    elif (final_class[i2] % 5) == 0:    #si es multiplo de 5 se saca por pantalla, significa que lleva 5 frames seguidos saliendo esa clase
+                    elif (final_class[i2] % 5) == 0: #evaluar si es multiplo de 5
                         final_class[i2] = 5
 
-                        print(msg_para_enviar)
-                        #print(f"saco por pantalla: {names[int(i2)]} {final_num[i2]} veces")
-                        #msg_para_enviar = f"saco por pantalla: {names[int(i2)]} {final_num[i2]} veces"
-                        await enviar(msg_para_enviar, HOST_PORT)
+                        for i3 in range(len(all_data)):
+                            num = f'{i2:02d}'
+                            if all_data[i3][0:2] == num:        
+                                msg_class = all_data[i3]
+                                break
+                        #print(msg_class)
+                        if len(all_data) != 0:
+                            await enviar(msg_class, HOST_PORT)
 
                         for i4 in range(len(final_class)):
                             if final_class[i4] >= 5:
                                 v_uni[i4] = 1
                         
-                        b = [x*y for x,y in zip(final_num,v_uni)]   #para multiplicar dos listas
-
-                        msg_total = f"{b[0]:02d} {b[1]:02d} {b[2]:02d} {b[3]:02d} {b[4]:02d} {b[5]:02d} {b[6]:02d} {b[7]:02d} {b[8]:02d} {b[9]:02d} {b[10]:02d} {b[11]:02d} {b[12]:02d} {b[13]:02d} {b[14]:02d} {b[15]:02d} {b[16]:02d} {b[17]:02d} {b[18]:02d} {b[19]:02d} {b[20]:02d} {b[21]:02d} {b[22]:02d} {b[23]:02d} {b[24]:02d} {b[25]:02d}"
+                        b = [x*y for x,y in zip(final_num,v_uni)]   #para multiplicar dos listas --> y ver si enviamos infor
+                        msg_total = f"98 {b[0]:02d} {b[1]:02d} {b[2]:02d} {b[3]:02d} {b[4]:02d} {b[5]:02d} {b[6]:02d} {b[7]:02d} {b[8]:02d} {b[9]:02d} {b[10]:02d} {b[11]:02d} {b[12]:02d} {b[13]:02d} {b[14]:02d} {b[15]:02d} {b[16]:02d} {b[17]:02d} {b[18]:02d} {b[19]:02d} {b[20]:02d} {b[21]:02d} {b[22]:02d} {b[23]:02d} {b[24]:02d} {b[25]:02d}"
                         print(msg_total)
                         await enviar(msg_total, HOST_PORT)
-    
                         v_uni = [0]*26
+        
+                sum_data = sum(final_class)
+                if sum_data == 0:
+                    msg_empty = f"98 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 "
+                    await enviar(msg_empty, HOST_PORT)
 
-                        # async with websockets.connect(HOST_PORT) as websocket:
-                        #             msg_para_enviar = f"saco por pantalla: {names[int(i2)]} {final_num[i2]} veces"
-                        #             await websocket.send(msg_para_enviar)    
-                        #final_class[i2] = 0
-            ##-------------------------------------------------------------------------------------------------------------------------------------------
-            else: #send msg if it is nothing in the streaming
-                lista = []
-                
-                for i3 in range(len(final_class)):
-                    eliminate[i3] = eliminate[i3] + 1
-                    if eliminate[i3] == 2:
-                        final_class[i3] = 0
-                        eliminate[i3] = 0
-                
-                print("")
-                msg_para_enviar = f''
+
+            ##-------------------------------------------------------------------------------------------------------------------------------------------   #send msg if it is nothing in the streaming e inicializa los valores de conteo si pasan mas de dos frames seguidos sin ver las clases
+            else: 
+                lista = []                
+                for i5 in range(len(final_class)):
+                    eliminate[i5] = eliminate[i5] + 1
+                    if eliminate[i5] == 2:
+                        final_class[i5] = 0
+                        eliminate[i5] = 0
+                        all_ima[i5] = 0
+                msg_para_enviar = f'99'
                 await enviar(msg_para_enviar, HOST_PORT)
-                # async with websockets.connect(HOST_PORT) as websocket:
-                #         msg_para_enviar = f''
-                #         await websocket.send(msg_para_enviar) 
             ##-------------------------------------------------------------------------------------------------------------------------------------------
 
             # Stream results
@@ -348,9 +357,11 @@ async def run(
     if update:
         strip_optimizer(weights)  # update model (to fix SourceChangeWarning)
 
+##------------------------------------------------------------------------------------------------------------------------------------------- funcion para enviar la informacion via websocket
 async def enviar(msg_para_enviar, HOST_PORT):
     async with websockets.connect(HOST_PORT) as websocket:
         await websocket.send(msg_para_enviar)
+##-------------------------------------------------------------------------------------------------------------------------------------------
 
 def parse_opt():
     parser = argparse.ArgumentParser()
@@ -384,7 +395,6 @@ def parse_opt():
     opt.imgsz *= 2 if len(opt.imgsz) == 1 else 1  # expand
     print_args(vars(opt))
     return opt
-
 
 async def main():
     opt = parse_opt()
