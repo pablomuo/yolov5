@@ -30,6 +30,7 @@ from utils.augmentations import Albumentations, augment_hsv, copy_paste, letterb
 from utils.general import (DATASETS_DIR, LOGGER, NUM_THREADS, check_dataset, check_requirements, check_yaml, clean_str,
                            cv2, is_colab, is_kaggle, segments2boxes, xyn2xy, xywh2xyxy, xywhn2xyxy, xyxy2xywhn)
 from utils.torch_utils import torch_distributed_zero_first
+import configparser
 
 # Parameters
 HELP_URL = 'https://github.com/ultralytics/yolov5/wiki/Train-Custom-Data'
@@ -335,12 +336,21 @@ class LoadStreams:
             
             #cap = cv2.VideoCapture(s)
             
-            cap = cv2.VideoCapture(
-                'udpsrc port=8554 caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264"'
-                ' ! rtph264depay'
-                ' ! avdec_h264'
-                ' ! videoconvert'
-                ' ! appsink', cv2.CAP_GSTREAMER)
+            # cap = cv2.VideoCapture(
+            #     'udpsrc port='{PORT_RX}' caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264"'
+            #     ' ! rtph264depay'
+            #     ' ! avdec_h264'
+            #     ' ! videoconvert'
+            #     ' ! appsink', cv2.CAP_GSTREAMER)
+            
+            send_gstr = (f'udpsrc port={PORT_RX} caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264" ! rtph264depay ! avdec_h264 ! videoconvert ! appsink')
+            cap = cv2.VideoCapture(send_gstr, cv2.CAP_GSTREAMER)
+            # cap = cv2.VideoCapture(
+            #     'udpsrc port=8554 caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264"'
+            #     ' ! rtph264depay'
+            #     ' ! avdec_h264'
+            #     ' ! videoconvert'
+            #     ' ! appsink', cv2.CAP_GSTREAMER)
 
 
 
