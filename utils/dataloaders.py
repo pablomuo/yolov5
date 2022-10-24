@@ -307,9 +307,9 @@ class LoadStreams:
         self.stride = stride
 
         #----------------------------------------------------------
-        config = configparser.ConfigParser()
-        config.read('config.ini')
-        PORT_RX = config['DEFAULT']['PORT_RX']
+        # config = configparser.ConfigParser()
+        # config.read('config.ini')
+        # PORT_RX = config['DEFAULT']['PORT_RX']
         #----------------------------------------------------------
 
         if os.path.isfile(sources):
@@ -336,21 +336,15 @@ class LoadStreams:
             
             #cap = cv2.VideoCapture(s)
             
-            # cap = cv2.VideoCapture(
-            #     'udpsrc port='{PORT_RX}' caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264"'
-            #     ' ! rtph264depay'
-            #     ' ! avdec_h264'
-            #     ' ! videoconvert'
-            #     ' ! appsink', cv2.CAP_GSTREAMER)
+            # rec_gstr = (f'udpsrc port={PORT_RX} caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264" ! rtph264depay ! avdec_h264 ! videoconvert ! appsink')
+            # cap = cv2.VideoCapture(rec_gstr, cv2.CAP_GSTREAMER)
             
-            send_gstr = (f'udpsrc port={PORT_RX} caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264" ! rtph264depay ! avdec_h264 ! videoconvert ! appsink')
-            cap = cv2.VideoCapture(send_gstr, cv2.CAP_GSTREAMER)
-            # cap = cv2.VideoCapture(
-            #     'udpsrc port=8554 caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264"'
-            #     ' ! rtph264depay'
-            #     ' ! avdec_h264'
-            #     ' ! videoconvert'
-            #     ' ! appsink', cv2.CAP_GSTREAMER)
+            cap = cv2.VideoCapture(
+                'udpsrc port=8554 caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264"'
+                ' ! rtph264depay'
+                ' ! avdec_h264'
+                ' ! videoconvert'
+                ' ! appsink', cv2.CAP_GSTREAMER)
 
 
 

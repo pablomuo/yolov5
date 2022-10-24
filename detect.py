@@ -120,28 +120,29 @@ async def run(
     #-------------------------------------------------#To send stream and websocket to the client ---------------------------------------------------
     
     # To read the data infor of the client (IP, PORT)
-    config = configparser.ConfigParser()
-    config.read('config.ini')
-    IP_TX = config['DEFAULT']['IP_TX']
-    PORT_TX = config['DEFAULT']['PORT_TX']
-    PORT_SB = config['DEFAULT']['PORT_SB']
-    CONF_MIN = float(config['DEFAULT']['CONF_MIN'])
-    AREA_MIN = float(config['DEFAULT']['AREA_MIN'])
+    # config = configparser.ConfigParser()
+    # config.read('config.ini')
+    # IP_TX = config['DEFAULT']['IP_TX']
+    # PORT_TX = config['DEFAULT']['PORT_TX']
+    # PORT_SB = config['DEFAULT']['PORT_SB']
+    # CONF_MIN = float(config['DEFAULT']['CONF_MIN'])
+    # AREA_MIN = float(config['DEFAULT']['AREA_MIN'])
 
     #send the stream to the client via GStreamer
-    gst_str_rtp =(f'gst-launch-1.0 -v  appsrc ! videoconvert ! videoscale ! video/x-raw,format=I420,width=1280,height=720,framerate=20/1 !  videoconvert !\
-         x264enc tune=zerolatency bitrate=3000 speed-preset=superfast ! rtph264pay !\
-         udpsink host= {IP_TX} port= {PORT_TX}')
+    # gst_str_rtp =(f'appsrc ! videoconvert ! videoscale ! video/x-raw,format=I420,width=1280,height=720,framerate=20/1 !  videoconvert !\
+    #      x264enc tune=zerolatency bitrate=3000 speed-preset=superfast ! rtph264pay !\
+    #      udpsink host= {IP_TX} port= {PORT_TX}')
 
-    # gst_str_rtp = " appsrc ! videoconvert ! videoscale ! video/x-raw,format=I420,width=1280,height=720,framerate=20/1 !  videoconvert !\
-    #      x264enc tune=zerolatency bitrate=3000 speed-preset=superfast ! rtph264pay ! \
-    #      udpsink host=10.236.25.41 port=8554"
+    gst_str_rtp = " appsrc ! videoconvert ! videoscale ! video/x-raw,format=I420,width=1280,height=720,framerate=20/1 !  videoconvert !\
+         x264enc tune=zerolatency bitrate=3000 speed-preset=superfast ! rtph264pay ! \
+         udpsink host=192.168.1.2 port=8650"
 
     fourcc = cv2.VideoWriter_fourcc(*'H264')
     out_send = cv2.VideoWriter(gst_str_rtp, fourcc, 20, (1280, 720), True)  #out_send = cv2.VideoWriter(gst_str_rtp, fourcc, fps, (frame_width, frame_height), True) 
 
     #send infor (text) via WebSocket to the Servidor_Broadcast and then to the platform 
-    HOST_PORT = (f'ws://{IP_TX}:{PORT_SB}')                                                                        # HOST_PORT = "ws://10.236.25.41:8000"
+    # HOST_PORT = (f'ws://{IP_TX}:{PORT_SB}')   
+    HOST_PORT = "ws://192.168.1.2:8000"
 
     #------------------------------------------------------------------------------------------------------------------------------------------------    #creamos vectores para almacenar la informacion
     final_class = [0]*26                                                                                           #se usa para llevar una cuenta de cuantos frames seguidos lleva viendo cada clase 
@@ -195,9 +196,9 @@ async def run(
             annotator = Annotator(im0, line_width=line_thickness, example=str(names))
 
             if len(det):
-                msg_time = str(time.time_ns())                                                                      # Establece las medidas del tiempo, para posibles medidas de latencia
+                #msg_time = str(time.time_ns())                                                                      # Establece las medidas del tiempo, para posibles medidas de latencia
                 #print(msg_time)
-                await enviar(msg_time, HOST_PORT)                                                                   # Envia las medidas del tiempo, para posibles medidas de latencia
+                #await enviar(msg_time, HOST_PORT)                                                                   # Envia las medidas del tiempo, para posibles medidas de latencia
                 # Rescale boxes from img_size to im0 size
                 det[:, :4] = scale_coords(im.shape[2:], det[:, :4], im0.shape).round()
                 print(det[:, 4])
