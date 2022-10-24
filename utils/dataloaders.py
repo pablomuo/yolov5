@@ -334,13 +334,15 @@ class LoadStreams:
                 assert not is_kaggle(), '--source 0 webcam unsupported on Kaggle. Rerun command in a local environment.'
             
             #cap = cv2.VideoCapture(s)
-
-            cap = cv2.VideoCapture(f'
-                'udpsrc port='{PORT_RX}' caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264"'
+            
+            cap = cv2.VideoCapture(
+                'udpsrc port=8554 caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264"'
                 ' ! rtph264depay'
                 ' ! avdec_h264'
                 ' ! videoconvert'
-                ' ! appsink', cv2.CAP_GSTREAMER ')
+                ' ! appsink', cv2.CAP_GSTREAMER)
+
+
 
             assert cap.isOpened(), f'{st}Failed to open {s}'
             w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
