@@ -1,6 +1,7 @@
 #enviamos el stream con Gstreamer y enviamos los datos con WEBSOCKETS
 #enviamos la información de la clase cuando está 5 frames seguidos saliendo, más la información de control
 #intentamos que salgo los boxes siempre y cuando en el frame anterior se ha detectado la clase, sino no, Para evitar que parpadee
+#con el filtro modeo Pablo (pesos), ademas, con el filtro de area y vista de tiempo
 
 # YOLOv5 🚀 by Ultralytics, GPL-3.0 license
 """
@@ -117,7 +118,8 @@ async def run(
     vid_path, vid_writer = [None] * bs, [None] * bs
 
     #-------------------------------------------------#To send stream and websocket to the client ---------------------------------------------------
-    #----------------------------------------------------------
+    
+    # To read the data infor of the client (IP, PORT)
     config = configparser.ConfigParser()
     config.read('config.ini')
     IP_TX = config['DEFAULT']['IP_TX']
@@ -125,10 +127,8 @@ async def run(
     PORT_SB = config['DEFAULT']['PORT_SB']
     CONF_MIN = float(config['DEFAULT']['CONF_MIN'])
     AREA_MIN = float(config['DEFAULT']['AREA_MIN'])
-    #----------------------------------------------------------
 
-
-    #send the stream to the client         #192.168.8.32
+    #send the stream to the client via GStreamer
     gst_str_rtp =(f'gst-launch-1.0 -v  appsrc ! videoconvert ! videoscale ! video/x-raw,format=I420,width=1280,height=720,framerate=20/1 !  videoconvert !\
          x264enc tune=zerolatency bitrate=3000 speed-preset=superfast ! rtph264pay !\
          udpsink host= {IP_TX} port= {PORT_TX}')
@@ -140,16 +140,15 @@ async def run(
     fourcc = cv2.VideoWriter_fourcc(*'H264')
     out_send = cv2.VideoWriter(gst_str_rtp, fourcc, 20, (1280, 720), True)  #out_send = cv2.VideoWriter(gst_str_rtp, fourcc, fps, (frame_width, frame_height), True) 
 
-    #send infor (text) to the terminal 
-    # HOST_PORT = "ws://10.236.25.41:8000"
-    HOST_PORT = (f'ws://{IP_TX}:{PORT_SB}')
+    #send infor (text) via WebSocket to the Servidor_Broadcast and then to the platform 
+    HOST_PORT = (f'ws://{IP_TX}:{PORT_SB}')                                                                        # HOST_PORT = "ws://10.236.25.41:8000"
 
     #------------------------------------------------------------------------------------------------------------------------------------------------    #creamos vectores para almacenar la informacion
-    final_class = [0]*26    #se usa para llevar una cuenta de cuantos frames seguidos lleva viendo cada clase 
-    eliminate = [0]*26      #se utiliza saber cuando  poner a 0 el final_class por no aparecer en varios frames seguidos
-    final_num = [0]*26      #se usa para almacenar el numero de objetos que ve de cada una de las clases, 
-    v_uni = [0]*26          #vector de 1 y 0s que se usa para multiplicar con el final_num para ver cuando sacar o no infor (si está)
-    all_ima = [0]*26        #se usa para llevar una cuenta de cuantos frames seguidos lleva viendo cada clase para ver si sacamos o no la img. 
+    final_class = [0]*26                                                                                           #se usa para llevar una cuenta de cuantos frames seguidos lleva viendo cada clase 
+    eliminate = [0]*26                                                                                             #se utiliza saber cuando  poner a 0 el final_class por no aparecer en varios frames seguidos
+    final_num = [0]*26                                                                                             #se usa para almacenar el numero de objetos que ve de cada una de las clases, 
+    v_uni = [0]*26                                                                                                 #vector de 1 y 0s que se usa para multiplicar con el final_num para ver cuando sacar o no infor (si está)
+    all_ima = [0]*26                                                                                               #se usa para llevar una cuenta de cuantos frames seguidos lleva viendo cada clase para ver si sacamos o no la img. 
     #------------------------------------------------------------------------------------------------------------------------------------------------   
         
     # Run inference
@@ -196,28 +195,31 @@ async def run(
             annotator = Annotator(im0, line_width=line_thickness, example=str(names))
 
             if len(det):
+                msg_time = str(time.time_ns())                                                                      # Establece las medidas del tiempo, para posibles medidas de latencia
+                #print(msg_time)
+                await enviar(msg_time, HOST_PORT)                                                                   # Envia las medidas del tiempo, para posibles medidas de latencia
                 # Rescale boxes from img_size to im0 size
                 det[:, :4] = scale_coords(im.shape[2:], det[:, :4], im0.shape).round()
                 print(det[:, 4])
                 #------------------------------------------------------------------------------------------------------------------------------------------- creacion de listas que almacenan la infor de: 
-                lista = []          #almacena las clases
-                lista_num = []      #almacena los numeros de objetos que ve de las clases
-                all_data = []       #almacena el msg que queremos enviar al final (clase, peso, area...)
+                lista = []                                                                                          #almacena las clases
+                lista_num = []                                                                                      #almacena los numeros de objetos que ve de las clases
+                all_data = []                                                                                       #almacena el msg que queremos enviar al final (clase, peso, area...)
                 area1 = []
                 #-------------------------------------------------------------------------------------------------------------------------------------------
-                for d in range(len(det)):              #area de cada una de las detecciones (oredenadas de mayor confianza a menos)
+                for d in range(len(det)):                                                                           #area de cada una de las detecciones (oredenadas de mayor confianza a menos)
                     v = (det[d, 2] - det[d, 0]) * (det[d, 3] - det[d, 1])
                     area1.append(v)
 
                 # Print results
                 for c in det[:, -1].unique():
-                    n = (det[:, -1] == c).sum()  # detections per class
-                    for d in range(len(det)):
-                        #if det[d, 5] == c and (det[d, 4] < CONF_MIN or area1[d] < AREA_MIN):      #si se tiene en cuenta una confianza mínima y un área mínima
-                        if det[d, 5] == c and det[d, 4] < CONF_MIN:                         #si se tiene en cuenta solo una confianza mínima 
+                    n = (det[:, -1] == c).sum()                                                                     # detections per class
+                    for d in range(len(det)):                                                                       # number of detections per class
+                        #if det[d, 5] == c and (det[d, 4] < CONF_MIN or area1[d] < AREA_MIN):                       #si se tiene en cuenta una confianza mínima y un área mínima
+                        if det[d, 5] == c and det[d, 4] < CONF_MIN:                                                 #si se tiene en cuenta solo una confianza mínima 
                             n = n-1
                     
-                    if n != 0:                                  ##-------------------------------------------------------------------------------------- toman valor las listas creadas anteriormente 
+                    if n != 0:                                                                                      #toman valor las listas creadas anteriormente, cuando tengamos detecciones que complan las condiciones de peso y/o area
                         lista.append(int(c))
                         lista_num.append(int(n))
                 ##------------------------------------------------------------------------------------------------------------------------------------------- analiza las clases que detectan en cada frame y suma 1 si se sale la clase en el frame
@@ -229,28 +231,27 @@ async def run(
                 ##------------------------------------------------------------------------------------------------------------------------------------------- 
 
                 # Write results
-                d = len(det)-1            
-                for *xyxy, conf, cls in reversed(det):        #este for va desde los valores con menos confianza hasta los que más tiene (lo inverso que det, que su primer valor es la detección con más confianza)
+                d = len(det)-1                                                                                      #contador invertido (va desde el final de det hasta el principio) (porque va desde los valores con menos confianza a los que más, justo lo contrario que det, que su primer valor es la detección con más confianza)
+                for *xyxy, conf, cls in reversed(det):                                                              #este for va desde los valores con menos confianza hasta los que más tiene (lo inverso que det, que su primer valor es la detección con más confianza)
                     if save_txt:  # Write to file
-                        xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
-                        line = (cls, *xywh, conf) if save_conf else (cls, *xywh)  # label format
+                        xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()                    # normalized xywh
+                        line = (cls, *xywh, conf) if save_conf else (cls, *xywh)                                    # label format
                         with open(f'{txt_path}.txt', 'a') as f:
                             f.write(('%g ' * len(line)).rstrip() % line + '\n')
 
-                    if save_img or save_crop or view_img:  # Add bbox to image
+                    if save_img or save_crop or view_img:                                                           # Add bbox to image
                         c = int(cls)  # integer class
                         label = None if hide_labels else (names[c] if hide_conf else f'{names[c]} {conf:.2f}')
-                        #n = (det[:, -1] == c).sum()  # detections per class  (para calcular el numero de objetos por cada una de las clases)
                         ##------------------------------------------------------------------------------------------------------------------------------------------- #print the corresponding infor and bounding box according to the class and area
                         if all_ima[c] >= 2:
-                            #if (det[d, 4] >= CONF_MIN) and (area1[d] >= AREA_MIN):                      #si se tiene en cuenta una confianza mínima y un área mínima
-                            if (det[d, 4] >= CONF_MIN):
+                            #if (det[d, 4] >= CONF_MIN) and (area1[d] >= AREA_MIN):                                 #si se tiene en cuenta una confianza mínima y un área mínima
+                            if (det[d, 4] >= CONF_MIN):                                                             #si se tiene en cuenta una confianza mínima 
                                 annotator.box_label(xyxy, label, color=colors(c, True))  
-                                ms = f'{c:02d} {det[d, 4]:.4f} {det[d, 0]} {det[d, 1]} {det[d, 2]} {det[d, 3]} '   #estio sera lo que se imprima en el txt, de cada observacion
+                                ms = f'{c:02d} {det[d, 4]:.4f} {det[d, 0]} {det[d, 1]} {det[d, 2]} {det[d, 3]} '    #estio sera lo que se imprima en el txt, de cada observacion
                                 print(ms)
-                                msg_para_enviar = f'{c:02d} {det[d, 4]:.4f} {area1[d]}'     #msg_para_enviar = f'{n:02d} {c:02d} {det[d, 4]:.4f} {area1[d]}'
+                                msg_para_enviar = f'{c:02d} {det[d, 4]:.4f} {area1[d]}'                             #msg_para_enviar = f'{n:02d} {c:02d} {det[d, 4]:.4f} {area1[d]}'
                                 all_data.append(msg_para_enviar)
-                        d = d-1                                #se resta porque va desde el final de det hasta el principio (porque va desde los valores con menos confianza a los que más, justo lo contrario que det, que su primer valor es la detección con más confianza)
+                        d = d-1                                                                                     #se resta porque va desde el final de det hasta el principio (porque va desde los valores con menos confianza a los que más, justo lo contrario que det, que su primer valor es la detección con más confianza)
                         ##-------------------------------------------------------------------------------------------------------------------------------------------
                     if save_crop:
                         save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg', BGR=True)
@@ -274,7 +275,7 @@ async def run(
                     
                     if final_class[i2] == 0:
                         pass
-                    elif (final_class[i2] % 5) == 0: #evaluar si es multiplo de 5
+                    elif (final_class[i2] % 5) == 0:                                                                 #evaluar si es multiplo de 5
                         final_class[i2] = 5
 
                         for i3 in range(len(all_data)):
@@ -290,17 +291,20 @@ async def run(
                             if final_class[i4] >= 5:
                                 v_uni[i4] = 1
                         
-                        b = [x*y for x,y in zip(final_num,v_uni)]   #para multiplicar dos listas --> y ver si enviamos infor
+                        b = [x*y for x,y in zip(final_num,v_uni)]                                                   #para multiplicar dos listas --> y ver si enviamos infor
                         msg_total = f"98 {b[0]:02d} {b[1]:02d} {b[2]:02d} {b[3]:02d} {b[4]:02d} {b[5]:02d} {b[6]:02d} {b[7]:02d} {b[8]:02d} {b[9]:02d} {b[10]:02d} {b[11]:02d} {b[12]:02d} {b[13]:02d} {b[14]:02d} {b[15]:02d} {b[16]:02d} {b[17]:02d} {b[18]:02d} {b[19]:02d} {b[20]:02d} {b[21]:02d} {b[22]:02d} {b[23]:02d} {b[24]:02d} {b[25]:02d}"
                         print(msg_total)
                         await enviar(msg_total, HOST_PORT)
+                        # msg_time = str(time.time_ns())                                                            # print(msg_time)
+                        # await enviar(msg_time, HOST_PORT)
                         v_uni = [0]*26
         
-                sum_data = sum(final_class)
+                sum_data = sum(final_class)                                                                         #Este mensaje se enviara cuando este detectando clases, sin embargo, no se cumpla los requisitos del filtro(area-peso), por lo que no se tomaran en cuenta, para reestablecer el contador de la plataforma
                 if sum_data == 0:
                     msg_empty = f"98 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 "
                     await enviar(msg_empty, HOST_PORT)
-
+                    # msg_time = str(time.time_ns())                                                                # print(msg_time)
+                    # await enviar(msg_time, HOST_PORT)
 
             ##-------------------------------------------------------------------------------------------------------------------------------------------   #send msg if it is nothing in the streaming e inicializa los valores de conteo si pasan mas de dos frames seguidos sin ver las clases
             else: 
@@ -313,6 +317,8 @@ async def run(
                         all_ima[i5] = 0
                 msg_para_enviar = f'99'
                 await enviar(msg_para_enviar, HOST_PORT)
+                # msg_time = str(time.time_ns())                                                                   # print(msg_time)
+                # await enviar(msg_time, HOST_PORT)
             ##-------------------------------------------------------------------------------------------------------------------------------------------
 
             # Stream results

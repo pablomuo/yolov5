@@ -5,6 +5,7 @@ import websockets
 import asyncio
 
 import configparser
+import time
 
 #----------------------------------------------------------
 config = configparser.ConfigParser()
@@ -20,11 +21,20 @@ connected = set()
 async def echo(websocket, path):
     connected.add(websocket)
     async for message in websocket:
-        print("receive msg: ", message)
+        if len(message)==19:
+            # time_yolo = float(message)
+            # time_Server = float(time.time_ns())
+            # lat = time_Server-time_yolo
+            print("latency between yolo and server: ", float(time.time_ns()-float(message)))
+            websockets.broadcast(connected, message)
+        else:
+            pass
+            #print("receive msg: ", message)
+    
         # for conn in connected:
         #     if conn!= websocket:
         #         await conn.send(message)
-        websockets.broadcast(connected, message)
+        #websockets.broadcast(connected, message)
 
 start_server = websockets.serve(echo, IP_TX, PORT_SB)
 
