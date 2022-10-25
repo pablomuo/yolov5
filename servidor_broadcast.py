@@ -8,14 +8,14 @@ import configparser
 import time
 
 #----------------------------------------------------------
-# config = configparser.ConfigParser()
-# config.read('config.ini')
-# IP_TX = config['DEFAULT']['IP_TX']
-# PORT_SB = config['DEFAULT']['PORT_SB']
+config = configparser.ConfigParser()
+config.read('config.ini')
+IP_TX = config['DEFAULT']['IP_TX']
+PORT_SB = config['DEFAULT']['PORT_SB']
 #----------------------------------------------------------
 
-IP_TX="192.168.1.2"
-PORT = 8000
+# IP_TX="10.236.51.222"
+# PORT_SB = 8000
 connected = set()
 
 async def echo(websocket, path):
@@ -37,7 +37,7 @@ async def echo(websocket, path):
         print("receive msg: ", message)
         websockets.broadcast(connected, message)
 
-start_server = websockets.serve(echo, IP_TX, PORT)
+start_server = websockets.serve(echo, IP_TX, PORT_SB)
 
 asyncio.get_event_loop().run_until_complete(start_server)
 asyncio.get_event_loop().run_forever()

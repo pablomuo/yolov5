@@ -125,13 +125,13 @@ async def run(
     #send the stream to the client
     gst_str_rtp = " appsrc ! videoconvert ! videoscale ! video/x-raw,format=I420,width=1280,height=720,framerate=20/1 !  videoconvert !\
          x264enc tune=zerolatency bitrate=3000 speed-preset=superfast ! rtph264pay ! \
-         udpsink host=10.236.49.24 port=8554"
+         udpsink host=10.236.51.222 port=8650"
          #192.168.8.32
     fourcc = cv2.VideoWriter_fourcc(*'H264')
     out_send = cv2.VideoWriter(gst_str_rtp, fourcc, 20, (1280, 720), True)  #out_send = cv2.VideoWriter(gst_str_rtp, fourcc, fps, (frame_width, frame_height), True) 
 
     #send infor (text) to the terminal 
-    HOST_PORT = "ws://10.236.49.24:8000"
+    HOST_PORT = "ws://10.236.51.222:8000"
     #HOST_PORT = "ws://192.168.1.136:8000" #mi idea es un terminal para enviar la infor por frame y otro para la impresion cada 10, no se si vale la pena o se puede recibir desde 1 terminal
     #------------------------------------------------------------------------------------------------------------------------------------------------   
     final_class = [0]*26
@@ -196,7 +196,6 @@ async def run(
             if len(det):
                 # Rescale boxes from img_size to im0 size
                 det[:, :4] = scale_coords(im.shape[2:], det[:, :4], im0.shape).round()
-                print(det[:, 4])
                 #-------------------------------------------------------------------------------------------------------------------------------------------
                 lista = []
                 lista_num = []

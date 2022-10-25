@@ -307,9 +307,9 @@ class LoadStreams:
         self.stride = stride
 
         #----------------------------------------------------------
-        # config = configparser.ConfigParser()
-        # config.read('config.ini')
-        # PORT_RX = config['DEFAULT']['PORT_RX']
+        config = configparser.ConfigParser()
+        config.read('config.ini')
+        PORT_RX = config['DEFAULT']['PORT_RX']
         #----------------------------------------------------------
 
         if os.path.isfile(sources):
@@ -336,16 +336,19 @@ class LoadStreams:
             
             #cap = cv2.VideoCapture(s)
             
+
             # rec_gstr = (f'udpsrc port={PORT_RX} caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264" ! rtph264depay ! avdec_h264 ! videoconvert ! appsink')
             # cap = cv2.VideoCapture(rec_gstr, cv2.CAP_GSTREAMER)
             
-            cap = cv2.VideoCapture(
-                'udpsrc port=8554 caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264"'
-                ' ! rtph264depay'
-                ' ! avdec_h264'
-                ' ! videoconvert'
-                ' ! appsink', cv2.CAP_GSTREAMER)
+            # cap = cv2.VideoCapture(
+            #     'udpsrc port=8554 caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264"'
+            #     ' ! rtph264depay'
+            #     ' ! avdec_h264'
+            #     ' ! videoconvert'
+            #     ' ! appsink', cv2.CAP_GSTREAMER)
 
+            gstreamer_str = (f'udpsrc port={PORT_RX} auto-multicast=0 ! application/x-rtp, media=video, encoding-name=H264 ! rtpjitterbuffer latency=300 ! rtph264depay ! decodebin ! videoconvert ! video/x-raw,format=BGR ! appsink drop=1')
+            cap = cv2.VideoCapture(gstreamer_str, cv2.CAP_GSTREAMER)
 
 
             assert cap.isOpened(), f'{st}Failed to open {s}'
